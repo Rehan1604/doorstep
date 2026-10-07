@@ -15,9 +15,23 @@ async def lifespan(_):
 
 app = FastAPI(title="Doorstep", version="0.1.0", lifespan=lifespan)
 # Local-only: the UI dev server is the sole allowed origin.
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-                   allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
+import os
 
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:5173"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        FRONTEND_URL,
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 @app.get("/api/health")
 def health():
