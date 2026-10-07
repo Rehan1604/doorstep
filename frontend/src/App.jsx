@@ -7,7 +7,7 @@ const INTERESTS = ["anything", "birds", "trees", "sounds", "photography", "light
 function useStatus() {
   const [s, set] = useState({ online: navigator.onLine, ai: "checking" });
   useEffect(() => {
-    const poll = () => api.health().then((h) => set((p) => ({ ...p, voice: !!h.voice, ai: h.ollama && h.model_present ? "local" : "fallback" })))
+    const poll = () => api.health().then((h) => set((p) => ({ ...p, voice: !!h.voice, ai: h.provider === "ollama" ? (h.model_present ? "local" : "fallback") : (h.configured ? "cloud" : "fallback") })))
       .catch(() => set((p) => ({ ...p, ai: "down" })));
     const on = () => set((p) => ({ ...p, online: true })), off = () => set((p) => ({ ...p, online: false }));
     window.addEventListener("online", on); window.addEventListener("offline", off);
@@ -18,7 +18,7 @@ function useStatus() {
 }
 
 function Badge({ status }) {
-  const ai = { local: "AI: LOCAL", fallback: "AI: MODEL MISSING", down: "AI: OFFLINE", checking: "AI: …" }[status.ai];
+  const ai = { local: "AI: LOCAL", cloud: "AI: READY", fallback: "AI: MODEL MISSING", down: "AI: OFFLINE", checking: "AI: …" }[status.ai];
   return (
     <div className="badge" role="status" aria-live="polite">
       <span className={status.online ? "dot" : "dot off"} /> INTERNET: {status.online ? "ON" : "DISCONNECTED"}
