@@ -18,11 +18,11 @@ function useStatus() {
 }
 
 function Badge({ status }) {
-  const ai = { local: "AI: LOCAL", fallback: "AI: MODEL MISSING", down: "AI: OFFLINE", checking: "AI: …" }[status.ai];
+  const ai = { local: "AI: LOCAL", cloud: "AI: READY", fallback: "AI: MODEL MISSING", down: "AI: OFFLINE", checking: "AI: …" }[status.ai];
   return (
     <div className="badge" role="status" aria-live="polite">
       <span className={status.online ? "dot" : "dot off"} /> INTERNET: {status.online ? "ON" : "DISCONNECTED"}
-      <span className="sep">·</span> {ai} <span className="sep">·</span> DATA: LOCAL
+      <span className="sep">·</span> {ai} <span className="sep">·</span> DATA: {status.ai === "cloud" ? "CLOUD" : "LOCAL"}
     </div>
   );
 }

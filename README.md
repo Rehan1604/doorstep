@@ -51,6 +51,20 @@ flowchart LR
   </tr>
 </table>
 
+**Live demo:** https://doorstep-alpha.vercel.app (hosted mode, see below) · **Full local mode:** run it yourself in 5 minutes.
+
+## Two Modes
+
+| | **Local mode** (the real thing) | **Hosted demo** (for trying it fast) |
+|---|---|---|
+| Model | Qwen2.5-1.5B via Ollama on your CPU | openai/gpt-oss-20b via Groq's API |
+| Your data | Never leaves your machine | Your choices and typed note go to our Render server and to Groq |
+| Offline | Yes | No |
+| Cost per mission | Zero | Uses a hosted API |
+| Status strip | `AI: LOCAL · DATA: LOCAL` | `AI: READY · DATA: CLOUD` |
+
+The hosted demo exists so you can try the flow without installing anything. The privacy and offline claims below apply to **local mode only**. Hosted history is stored per browser on a free-tier server and can reset when the server restarts.
+
 ## Why Open AI?
 
 Why not just call a closed API? Because of what this app handles: where you walk, what you notice, how you feel.

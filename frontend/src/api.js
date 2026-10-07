@@ -1,10 +1,24 @@
 const API_BASE =
   import.meta.env.VITE_API_URL || "";
 
+const CLIENT_ID = (() => {
+  try {
+    let id = localStorage.getItem("doorstep_client");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("doorstep_client", id);
+    }
+    return id;
+  } catch {
+    return "";
+  }
+})();
+
 async function call(path, opts = {}) {
   const r = await fetch(`${API_BASE}${path}`, {
-    headers: {
+        headers: {
       "Content-Type": "application/json",
+      "X-Client-Id": CLIENT_ID,
       ...(opts.headers || {}),
     },
     ...opts,
