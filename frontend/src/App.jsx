@@ -22,7 +22,7 @@ function Badge({ status }) {
   return (
     <div className="badge" role="status" aria-live="polite">
       <span className={status.online ? "dot" : "dot off"} /> INTERNET: {status.online ? "ON" : "DISCONNECTED"}
-      <span className="sep">·</span> {ai} <span className="sep">·</span> DATA: LOCAL
+      <span className="sep">·</span> {ai} <span className="sep">·</span> DATA: {status.ai === "cloud" ? "CLOUD" : "LOCAL"}
     </div>
   );
 }

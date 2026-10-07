@@ -17,16 +17,20 @@ def db():
     con.row_factory = sqlite3.Row
     con.execute(SCHEMA)
     try:
+        con.execute("ALTER TABLE missions ADD COLUMN client TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    try:
         yield con
         con.commit()
     finally:
         con.close()
 
 
-def save_mission(request: dict, mission: dict, source: str) -> int:
+def save_mission(request: dict, mission: dict, source: str, client: str = "") -> int:
     with db() as c:
-        cur = c.execute("INSERT INTO missions(created,request,mission,source) VALUES(?,?,?,?)",
-                        (time.time(), json.dumps(request), json.dumps(mission), source))
+        cur = c.execute("INSERT INTO missions(created,request,mission,source,client) VALUES(?,?,?,?,?)",
+                        (time.time(), json.dumps(request), json.dumps(mission), source, client))
         return cur.lastrowid
 
 
@@ -42,15 +46,17 @@ def complete(mid: int, completed: bool, surprise: str, feeling: str, reflection:
                   (int(completed), surprise, feeling, reflection, mid))
 
 
-def recent_titles(n: int = 3) -> list[str]:
+def recent_titles(n: int = 3, client: str = "") -> list[str]:
     with db() as c:
-        rows = c.execute("SELECT mission FROM missions ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+        rows = c.execute("SELECT mission FROM missions WHERE client=? ORDER BY id DESC LIMIT ?",
+                         (client, n)).fetchall()
     return [json.loads(r["mission"])["title"] for r in rows]
 
 
-def history() -> dict:
+def history(client: str = "") -> dict:
     with db() as c:
-        rows = c.execute("SELECT * FROM missions WHERE completed=1 ORDER BY id DESC LIMIT 50").fetchall()
+        rows = c.execute("SELECT * FROM missions WHERE completed=1 AND client=? ORDER BY id DESC LIMIT 50",
+                         (client,)).fetchall()
     items = [_row(r) for r in rows]
     minutes = sum(i["mission"]["duration_minutes"] for i in items)
     return {"completed": len(items), "minutes_outside": minutes, "items": items}
