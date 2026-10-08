@@ -1,11 +1,13 @@
+import os
 import threading
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import ai, store, voice
-from .schema import Completion, Mission, MissionRequest
+from . import ai, engine, store, voice
+from .schema import Completion, MissionRequest
+
 
 @asynccontextmanager
 async def lifespan(_):
@@ -13,25 +15,15 @@ async def lifespan(_):
     yield
 
 
-app = FastAPI(title="Doorstep", version="0.1.0", lifespan=lifespan)
-# Local-only: the UI dev server is the sole allowed origin.
-import os
-
-FRONTEND_URL = os.getenv(
-    "FRONTEND_URL",
-    "http://localhost:5173"
-)
-
+app = FastAPI(title="Doorstep", version="0.2.0", lifespan=lifespan)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        FRONTEND_URL,
-    ],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", FRONTEND_URL],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "X-Client-Id"],
 )
+
 
 @app.get("/api/health")
 def health():
@@ -40,24 +32,25 @@ def health():
 
 @app.post("/api/missions")
 def create_mission(req: MissionRequest, x_client_id: str = Header(default="", max_length=64)):
-    mission, source = ai.generate_mission(req, store.recent_titles(client=x_client_id))
-    mid = store.save_mission(req.model_dump(), mission.model_dump(), source, x_client_id)
-    return {"id": mid, "source": source, "mission": mission}
-
+    return engine.create(req, x_client_id)
 
 
 @app.post("/api/missions/{mid}/complete")
 def complete_mission(mid: int, body: Completion, x_client_id: str = Header(default="", max_length=64)):
-    row = store.get_mission(mid)
-    if not row or row["client"] != x_client_id:
+    result = engine.finish(mid, body, x_client_id)
+    if result is None:
         raise HTTPException(404, "mission not found")
-    text, source = ai.generate_reflection(Mission(**row["mission"]), body.completed, body.surprise)
-    store.complete(mid, body.completed, body.surprise, body.feeling, text)
-    return {"reflection": text, "source": source}
+    return result
+
 
 @app.get("/api/history")
 def get_history(x_client_id: str = Header(default="", max_length=64)):
     return store.history(x_client_id)
+
+
+@app.get("/api/insights")
+def get_insights(x_client_id: str = Header(default="", max_length=64)):
+    return engine.insights(x_client_id)
 
 
 @app.post("/api/transcribe")

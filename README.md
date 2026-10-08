@@ -65,6 +65,16 @@ flowchart LR
 
 The hosted demo exists so you can try the flow without installing anything. The privacy and offline claims below apply to **local mode only**. Hosted history is stored per browser on a free-tier server and can reset when the server restarts.
 
+## The ML Inside
+
+Not a task list with a chatbot on top:
+
+- **It learns you.** A Thompson-sampling bandit picks the mission style that leaves you feeling best, and the card says why.
+- **It avoids repeats by meaning**, not by title, using embeddings and cosine similarity.
+- **It remembers privately.** Your notes are embedded locally, and reflections connect to related earlier notes.
+
+Details, simulation results, and honest limits: [`docs/ML.md`](docs/ML.md).
+
 ## Why Open AI?
 
 Why not just call a closed API? Because of what this app handles: where you walk, what you notice, how you feel.

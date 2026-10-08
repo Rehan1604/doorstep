@@ -1,7 +1,7 @@
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
-import App, { MissionCard, Badge } from "./App.jsx";
+import App, { MissionCard, Badge, Insights } from "./App.jsx";
 import * as api from "./api.js";
 
 const mission = { id: 1, source: "model", mission: { title: "Quiet Corner Hunt", duration_minutes: 20, difficulty: "easy",
@@ -54,4 +54,19 @@ test("full flow: card -> phone down -> complete -> reflection", async () => {
   await userEvent.type(screen.getByLabelText("What surprised you?"), "a heron");
   await userEvent.click(screen.getByText("FINISH"));
   expect(await screen.findByText("You gave it 20 minutes.")).toBeTruthy();
+});
+
+test("mission card explains why this style and shows novelty", () => {
+  const data = { ...mission, style_label: "Close-up", why: "Close-up has left you feeling better in 3 of 4 missions.", novelty: 0.82 };
+  render(<MissionCard data={data} onStart={() => {}} />);
+  expect(screen.getByText(/3 of 4 missions/)).toBeTruthy();
+  expect(screen.getByText("82% new")).toBeTruthy();
+});
+
+test("insights panel shows what works and hides when empty", () => {
+  const { container, rerender } = render(<Insights data={{ total: 0, styles: [], best: null }} />);
+  expect(container.textContent).toBe("");
+  rerender(<Insights data={{ total: 4, best: "Close-up", styles: [{ style: "closeup", label: "Close-up", n: 4, good: 3, mean: 0.8 }] }} />);
+  expect(screen.getByText("3/4 felt better")).toBeTruthy();
+  expect(screen.getByText(/Right now: Close-up/)).toBeTruthy();
 });

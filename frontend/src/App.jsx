@@ -51,11 +51,11 @@ function Home({ onGo, onHistory, history }) {
   );
 }
 
-function Breathe() {
+function Breathe({ cloud }) {
   return (
     <main className="screen center">
       <div className="breath" aria-hidden="true" />
-      <p className="soft">Your mission is being written on this machine.<br />Breathe in. Out.</p>
+      <p className="soft">Your mission is being written {cloud ? "by a hosted model" : "on this machine"}.<br />Breathe in. Out.</p>
     </main>
   );
 }
@@ -76,6 +76,7 @@ function MissionCard({ data, onStart }) {
         <span>{Math.max(left, 0)}s of screen left</span>
       </div>
       <p className="meta">{mission.duration_minutes} MIN · {mission.difficulty.toUpperCase()}{source === "fallback" ? " · OFFLINE-SAFE MISSION" : ""}</p>
+      {data.why && <p className="mlwhy"><span className="pill">{data.style_label}</span> {data.why}{data.novelty != null && <> <span className="pill">{Math.round(data.novelty * 100)}% new</span></>}</p>}
       <h2>{mission.title}</h2>
       <p className="obj">{mission.objective}</p>
       <ol>{mission.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
@@ -147,12 +148,30 @@ function Complete({ onSubmit, busy, voice }) {
   );
 }
 
-function History({ history, onBack }) {
+function Insights({ data }) {
+  if (!data || data.total < 1) return null;
+  return (
+    <section className="ins" aria-label="What works for you">
+      <h3>What works for you</h3>
+      {data.styles.map((s) => (
+        <div className="insrow" key={s.style}>
+          <span>{s.label}</span>
+          <div className="insbar"><div style={{ width: `${Math.round(s.mean * 100)}%` }} /></div>
+          <span className="soft">{s.good}/{s.n} felt better</span>
+        </div>
+      ))}
+      <p className="soft">Learned only from your own feedback by a small bandit model.{data.best ? ` Right now: ${data.best}.` : ""}</p>
+    </section>
+  );
+}
+
+function History({ history, insights, onBack }) {
   const items = history?.items || [];
   return (
     <main className="screen">
       <h1>{history?.minutes_outside || 0} <em>minutes</em> outside.</h1>
       <p className="soft">{history?.completed || 0} missions completed. No streaks, no scores, no leaderboard.</p>
+      <Insights data={insights} />
       {items.length === 0 && <p className="soft">Nothing yet. The first one is the hardest, and it’s only a few minutes.</p>}
       <ul className="hist">{items.map((i) => (
         <li key={i.id}><strong>{i.mission.title}</strong> <span className="soft">· {i.mission.duration_minutes} min</span>
@@ -162,16 +181,17 @@ function History({ history, onBack }) {
   );
 }
 
-function Reflection({ text, onDone }) {
+function Reflection({ text, recalled, onDone }) {
   return (
     <main className="screen center">
       <p className="reflect">{text}</p>
+      {recalled > 0 && <p className="soft">Linked to an earlier note of yours.</p>}
       <button className="ghost" onClick={onDone}>Close</button>
     </main>
   );
 }
 
-export { Home, MissionCard, Badge };
+export { Home, MissionCard, Badge, Insights };
 export default function App() {
   const status = useStatus();
   const [view, setView] = useState("home");
@@ -179,7 +199,10 @@ export default function App() {
   const [text, setText] = useState("");
   const [err, setErr] = useState("");
   const [history, setHistory] = useState(null);
+  const [insights, setInsights] = useState(null);
+  const [recalled, setRecalled] = useState(0);
   useEffect(() => { api.getHistory().then(setHistory).catch(() => {}); }, [view]);
+  useEffect(() => { if (view === "history") api.getInsights().then(setInsights).catch(() => {}); }, [view]);
 
   const go = async (req) => {
     setErr(""); setView("breathe");
@@ -188,7 +211,7 @@ export default function App() {
   };
   const finish = async (body) => {
     setView("busy");
-    try { setText((await api.completeMission(data.id, body)).reflection); }
+    try { const r = await api.completeMission(data.id, body); setText(r.reflection); setRecalled(r.recalled || 0); }
     catch { setText("Saved nothing this time, but you went outside. That is the whole point."); }
     setView("reflect");
   };
@@ -198,12 +221,12 @@ export default function App() {
       <Badge status={status} />
       {err && <div className="err" role="alert">{err}</div>}
       {view === "home" && <Home onGo={go} onHistory={() => setView("history")} history={history} />}
-      {view === "history" && <History history={history} onBack={() => setView("home")} />}
-      {view === "breathe" && <Breathe />}
+      {view === "history" && <History history={history} insights={insights} onBack={() => setView("home")} />}
+      {view === "breathe" && <Breathe cloud={status.ai === "cloud"} />}
       {view === "card" && <MissionCard data={data} onStart={() => setView("down")} />}
       {view === "down" && <PhoneDown mission={data.mission} onBack={() => setView("complete")} />}
       {(view === "complete" || view === "busy") && <Complete onSubmit={finish} busy={view === "busy"} voice={status.voice} />}
-      {view === "reflect" && <Reflection text={text} onDone={() => { setData(null); setView("home"); }} />}
+      {view === "reflect" && <Reflection text={text} recalled={recalled} onDone={() => { setData(null); setView("home"); }} />}
     </>
   );
 }

@@ -49,6 +49,9 @@ export const completeMission = (id, body) =>
 export const getHistory = () =>
   call("/api/history");
 
+export const getInsights = () =>
+  call("/api/insights");
+
 export async function transcribe(blob) {
   const r = await fetch(
     `${API_BASE}/api/transcribe`,
