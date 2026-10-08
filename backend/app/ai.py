@@ -48,23 +48,38 @@ def _chat_ollama(messages: list[dict], schema: dict) -> str:
         raise ModelError(str(e)) from e
 
 
+def _extract_json(text: str) -> str:
+    """Models sometimes wrap JSON in prose or code fences; keep the outermost object."""
+    i, j = text.find("{"), text.rfind("}")
+    return text[i:j + 1] if 0 <= i < j else text
+
+
 def _chat_openai(messages: list[dict], schema: dict) -> str:
     if not config.OPENAI_API_KEY:
         raise ModelError("OPENAI_API_KEY is missing")
     # json_object mode does not enforce a schema, so the field names must be in the prompt.
     msgs = [dict(m) for m in messages]
     msgs[0]["content"] += " Reply with one JSON object matching this JSON schema: " + json.dumps(schema)
-    try:
-        r = httpx.post(f"{config.OPENAI_BASE_URL.rstrip('/')}/chat/completions",
-                       headers={"Authorization": f"Bearer {config.OPENAI_API_KEY}", "Content-Type": "application/json"},
-                       json={"model": config.MODEL, "messages": msgs, "temperature": 0.4, "max_tokens": 600,
-                             "response_format": {"type": "json_object"}},
-                       timeout=config.TIMEOUT_S)
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
-    except (httpx.HTTPError, KeyError, ValueError) as e:
-        raise ModelError(str(e)) from e
-
+    body = {"model": config.MODEL, "messages": msgs, "temperature": 0.4, "max_tokens": 600}
+    if "gpt-oss" in config.MODEL:
+        # Reasoning models spend output tokens thinking: keep it short and leave room for the answer.
+        body["reasoning_effort"] = "low"
+        body["max_tokens"] = 1500
+    url = f"{config.OPENAI_BASE_URL.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"Bearer {config.OPENAI_API_KEY}", "Content-Type": "application/json"}
+    for json_mode in (True, False):  # some hosted models reject JSON mode: retry once without it
+        payload = dict(body, response_format={"type": "json_object"}) if json_mode else body
+        try:
+            r = httpx.post(url, headers=headers, json=payload, timeout=config.TIMEOUT_S)
+            if r.status_code >= 400:
+                log.warning("hosted model returned %s (json_mode=%s): %s", r.status_code, json_mode, r.text[:300])
+                if r.status_code == 400 and json_mode:
+                    continue
+            r.raise_for_status()
+            return _extract_json(r.json()["choices"][0]["message"]["content"])
+        except (httpx.HTTPError, KeyError, ValueError) as e:
+            raise ModelError(str(e)) from e
+    raise ModelError("hosted model rejected the request")
 
 def _chat(messages: list[dict], schema: dict) -> str:
     provider = config.AI_PROVIDER.lower()

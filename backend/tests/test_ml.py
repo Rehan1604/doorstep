@@ -166,14 +166,43 @@ def test_stored_text_cannot_inject_into_prompt():
     assert "\n" not in cleaned and "{" not in cleaned and "<" not in cleaned
 
 
+class _Resp:
+    def __init__(self, status=200, content="{}"):
+        self.status_code, self._c, self.text = status, content, "error body"
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise ai.httpx.HTTPStatusError("bad", request=None, response=None)
+
+    def json(self):
+        return {"choices": [{"message": {"content": self._c}}]}
+
+
 def test_hosted_mode_sends_schema_to_model(monkeypatch):
     sent = {}
-
-    class R:
-        def raise_for_status(self): pass
-        def json(self): return {"choices": [{"message": {"content": "{}"}}]}
-
     monkeypatch.setattr(config, "OPENAI_API_KEY", "test-not-real")
-    monkeypatch.setattr(ai.httpx, "post", lambda url, **kw: sent.update(kw) or R())
+    monkeypatch.setattr(ai.httpx, "post", lambda url, **kw: sent.update(kw) or _Resp())
     ai._chat_openai([{"role": "system", "content": "sys"}, {"role": "user", "content": "u"}], {"properties": {"title": {}}})
     assert "JSON schema" in sent["json"]["messages"][0]["content"] and '"title"' in sent["json"]["messages"][0]["content"]
+
+
+def test_hosted_mode_retries_without_json_mode_on_400(monkeypatch):
+    calls = []
+
+    def post(url, **kw):
+        calls.append(kw["json"])
+        return _Resp(400) if "response_format" in kw["json"] else _Resp(200, 'Sure! {"ok": 1} done')
+
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "test-not-real")
+    monkeypatch.setattr(ai.httpx, "post", post)
+    out = ai._chat_openai([{"role": "system", "content": "sys"}], {})
+    assert out == '{"ok": 1}' and len(calls) == 2 and "response_format" not in calls[1]
+
+
+def test_reasoning_models_get_room_and_low_effort(monkeypatch):
+    sent = {}
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "test-not-real")
+    monkeypatch.setattr(config, "MODEL", "openai/gpt-oss-20b")
+    monkeypatch.setattr(ai.httpx, "post", lambda url, **kw: sent.update(kw) or _Resp())
+    ai._chat_openai([{"role": "system", "content": "sys"}], {})
+    assert sent["json"]["reasoning_effort"] == "low" and sent["json"]["max_tokens"] == 1500
